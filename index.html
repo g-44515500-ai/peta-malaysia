@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Permainan Puzzle Peta Malaysia</title>
+  
+  <!-- MediaPipe Hands & Camera Utils -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    body {
+      background-color: #0f172a;
+      color: #f8fafc;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      width: 100vw;
+      user-select: none;
+    }
+
+    .screen {
+      display: none;
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      z-index: 5;
+    }
+
+    .screen.active {
+      display: flex;
+    }
+
+    /* Card / Modal UI */
+    .card {
+      background: #1e293b;
+      padding: 2rem;
+      border-radius: 1rem;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      width: 90%;
+      max-width: 480px;
+      text-align: center;
+      border: 1px solid #334155;
+    }
+
+    h1, h2 {
+      color: #38bdf8;
+      margin-bottom: 0.5rem;
+    }
+
+    p {
+      color: #94a3b8;
+      margin-bottom: 1.5rem;
+      font-size: 0.95rem;
+    }
+
+    .form-group {
+      margin-bottom: 1.25rem;
+      text-align: left;
+    }
+
+    .form-group label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 0.4rem;
+      color: #e2e8f0;
+      font-size: 0.9rem;
+    }
+
+    .form-group input, .form-group select {
+      width: 100%;
+      padding: 0.75rem;
+      border: 1px solid #475569;
+      background: #0f172a;
+      color: #fff;
+      border-radius: 0.5rem;
+      font-size: 1rem;
+      outline: none;
+    }
+
+    .form-group input:focus, .form-group select:focus {
+      border-color: #38bdf8;
+    }
+
+    .btn-primary {
+      background-color: #0284c7;
+      color: #fff;
+      border: none;
+      padding: 0.8rem 1.5rem;
+      border-radius: 0.5rem;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      width: 100%;
+      margin-top: 0.5rem;
+    }
+
+    .btn-primary:hover {
+      background-color: #0369a1;
+      transform: translateY(-2px);
+    }
+
+    /* HUD Bar Overlay */
+    #game-ui-overlay {
+      position: absolute;
+      top: 15px;
+      left: 15px;
+      right: 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    .hud-box {
+      background: rgba(30, 41, 59, 0.85);
+      padding: 0.6rem 1.2rem;
+      border-radius: 0.5rem;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(8px);
+      font-weight: 600;
+      font-size: 0.95rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+
+    .hud-box span {
+      color: #38bdf8;
+    }
+
+    /* Canvas Layout */
+    #canvas-container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    canvas#game-canvas {
+      background-color: #0284c7;
+      box-shadow: 0 0 20px rgba(0,0,0,0.4);
+    }
+
+    /* Webcam Box */
+    #webcam-container {
+      position: absolute;
+      bottom: 15px;
+      right: 15px;
+      width: 160px;
+      height: 120px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 2px solid #38bdf8;
+      background: #000;
+      z-index: 20;
+    }
+
+    #webcam-video, #webcam-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    #webcam-status {
+      position: absolute;
+      bottom: 0;
+      width: 100%;
+      background: rgba(0, 0, 0, 0.75);
+      color: #4ade80;
+      font-size: 0.68rem;
+      text-align: center;
+      padding: 2px 0;
+    }
+
+    /* Arahan Panduan */
+    #instruction-bar {
+      position: absolute;
+      bottom: 15px;
+      left: 15px;
+      background: rgba(30, 41, 59, 0.85);
+      padding: 0.6rem 1.2rem;
+      border-radius: 0.5rem;
+      border: 1px solid rgba(255,255,255,0.1);
+      font-size: 0.85rem;
+      color: #cbd5e1;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    /* Paparan Keputusan */
+    .result-list {
+      text-align: left;
+      margin-bottom: 1.25rem;
+      background: #0f172a;
+      padding: 1rem;
+      border-radius: 0.5rem;
+    }
+
+    .result-item {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+    }
+
+    .result-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .result-item label {
+      color: #94a3b8;
+    }
+
+    .result-item val {
+      font-weight: 700;
+      color: #f8fafc;
+    }
+
+    .status-msg {
+      font-size: 0.8rem;
+      color: #f59e0b;
+      margin-top: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- SKRIN 1: BORANG PENDAFTARAN -->
+  <div id="screen-setup" class="screen active">
+    <div class="card">
+      <h1>PUZZLE PETA MALAYSIA</h1>
+      <p>Susun 13 Negeri & 3 Wilayah Persekutuan ke lokasi yang tepat!</p>
+
+      <div class="form-group">
+        <label for="input-nama">Nama Murid</label>
+        <input type="text" id="input-nama" placeholder="Masukkan nama penuh" required>
+      </div>
+
+      <div class="form-group">
+        <label for="input-kelas">Kelas</label>
+        <input type="text" id="input-kelas" placeholder="Contoh: 5 Mawar" required>
+      </div>
+
+      <div class="form-group">
+        <label for="select-control">Pilihan Kawalan</label>
+        <select id="select-control">
+          <option value="webcam">Webcam (MediaPipe Gestures / Pinch)</option>
+          <option value="mouse">Tetikus / Sentuhan Skrin (Mouse/Touch)</option>
+        </select>
+      </div>
+
+      <button id="btn-start" class="btn-primary">MULA PERMAINAN</button>
+    </div>
+  </div>
+
+  <!-- SKRIN 2: KAWASAN PERMAINAN CANVAS -->
+  <div id="screen-game" class="screen">
+    <div id="game-ui-overlay">
+      <div class="hud-box">Pemain: <span id="disp-player">-</span></div>
+      <div class="hud-box">Masa: <span id="disp-timer">00:00</span></div>
+      <div class="hud-box">Nyawa: <span id="disp-lives">❤️❤️❤️</span></div>
+      <div class="hud-box">Skor: <span id="disp-score">0</span></div>
+    </div>
+
+    <div id="canvas-container">
+      <canvas id="game-canvas"></canvas>
+    </div>
+
+    <div id="instruction-bar">
+      💡 <b>Kawalan Gesture:</b> Tunjukkan jari telunjuk untuk kursor. Pinch (Ibu Jari + Telunjuk) untuk pegang & lepaskan puzzle.
+    </div>
+
+    <div id="webcam-container">
+      <video id="webcam-video" playsinline></video>
+      <canvas id="webcam-canvas"></canvas>
+      <div id="webcam-status">Memulakan Kamera...</div>
+    </div>
+  </div>
+
+  <!-- SKRIN 3: KEPUTUSAN PERMAINAN -->
+  <div id="screen-results" class="screen">
+    <div class="card">
+      <h2 id="res-heading">PERMAINAN TAMAT!</h2>
+      <p id="res-sub">Berikut adalah ringkasan pencapaian anda:</p>
+
+      <div class="result-list">
+        <div class="result-item"><label>Nama:</label><val id="res-nama">-</val></div>
+        <div class="result-item"><label>Kelas:</label><val id="res-kelas">-</val></div>
+        <div class="result-item"><label>Skor Keseluruhan:</label><val id="res-skor">0</val></div>
+        <div class="result-item"><label>Jawapan Betul:</label><val id="res-betul">0</val></div>
+        <div class="result-item"><label>Jawapan Salah:</label><val id="res-salah">0</val></div>
+        <div class="result-item"><label>Tempoh Masa:</label><val id="res-masa">00:00</val></div>
+        <div class="result-item"><label>Baki Nyawa:</label><val id="res-nyawa">0</val></div>
+        <div class="result-item"><label>Tahap Pencapaian:</label><val id="res-tahap" style="color:#38bdf8;">-</val></div>
+      </div>
+
+      <div id="save-status" class="status-msg">Menyimpan rekod...</div>
+      <button id="btn-restart" class="btn-primary">MAIN SEMULA</button>
+    </div>
+  </div>
+
+  <script>
+    // --- DATA 13 NEGERI & 3 WILAYAH PERSEKUTUAN ---
+    const MAP_DATA = [
+      { id: 'PLS', name: 'Perlis', x: 0.16, y: 0.22, w: 0.04, h: 0.05, color: '#f43f5e' },
+      { id: 'KDH', name: 'Kedah', x: 0.17, y: 0.28, w: 0.06, h: 0.09, color: '#ec4899' },
+      { id: 'PNG', name: 'P. Pinang', x: 0.13, y: 0.32, w: 0.04, h: 0.05, color: '#a855f7' },
+      { id: 'PRK', name: 'Perak', x: 0.18, y: 0.40, w: 0.07, h: 0.12, color: '#8b5cf6' },
+      { id: 'KEL', name: 'Kelantan', x: 0.26, y: 0.30, w: 0.07, h: 0.11, color: '#6366f1' },
+      { id: 'TRG', name: 'Terengganu', x: 0.32, y: 0.35, w: 0.06, h: 0.13, color: '#3b82f6' },
+      { id: 'PHG', name: 'Pahang', x: 0.26, y: 0.48, w: 0.10, h: 0.15, color: '#0ea5e9' },
+      { id: 'SEL', name: 'Selangor', x: 0.18, y: 0.54, w: 0.06, h: 0.08, color: '#06b6d4' },
+      { id: 'KUL', name: 'W.P. KL', x: 0.22, y: 0.55, w: 0.04, h: 0.04, color: '#14b8a6' },
+      { id: 'PJY', name: 'W.P. Putrajaya', x: 0.22, y: 0.60, w: 0.04, h: 0.04, color: '#10b981' },
+      { id: 'NSN', name: 'N. Sembilan', x: 0.23, y: 0.64, w: 0.06, h: 0.07, color: '#84cc16' },
+      { id: 'MLK', name: 'Melaka', x: 0.22, y: 0.72, w: 0.05, h: 0.05, color: '#eab308' },
+      { id: 'JHR', name: 'Johor', x: 0.27, y: 0.72, w: 0.09, h: 0.12, color: '#f97316' },
+      { id: 'SRW', name: 'Sarawak', x: 0.56, y: 0.58, w: 0.18, h: 0.22, color: '#10b981' },
+      { id: 'SBH', name: 'Sabah', x: 0.78, y: 0.30, w: 0.14, h: 0.20, color: '#06b6d4' },
+      { id: 'LBN', name: 'W.P. Labuan', x: 0.74, y: 0.32, w: 0.04, h: 0.04, color: '#3b82f6' }
+    ];
+
+    // --- GAME ENGINE STATE ---
+    let canvas, ctx;
+    let player = { nama: '', kelas: '' };
+    let controlMode = 'webcam';
+    let lives = 3;
+    let score = 0;
+    let correctCount = 0;
+    let wrongCount = 0;
+    let timerSeconds = 0;
+    let timerInterval = null;
+
+    let puzzlePieces = [];
+    let dropZones = [];
+    let draggedPiece = null;
+
+    // Pointer & Gesture Status
+    let cursor = { x: 0, y: 0, isPinching: false };
+    let cameraObj = null;
+
+    // --- INITIALIZATION ---
+    window.addEventListener('load', () => {
+      canvas = document.getElementById('game-canvas');
+      ctx = canvas.getContext('2d');
+      resizeCanvas();
+
+      window.addEventListener('resize', resizeCanvas);
+
+      document.getElementById('btn-start').addEventListener('click', startGame);
+      document.getElementById('btn-restart').addEventListener('click', resetGame);
+
+      setupMouseEvents();
+    });
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      if (dropZones.length > 0) recalculatePositions();
+    }
+
+    function switchScreen(id) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+    }
+
+    function startGame() {
+      const nama = document.getElementById('input-nama').value.trim();
+      const kelas = document.getElementById('input-kelas').value.trim();
+
+      if (!nama || !kelas) {
+        alert('Sila masukkan Nama dan Kelas anda!');
+        return;
+      }
+
+      player.nama = nama;
+      player.kelas = kelas;
+      controlMode = document.getElementById('select-control').value;
+
+      document.getElementById('disp-player').innerText = `${nama} (${kelas})`;
+
+      switchScreen('screen-game');
+      initGameObjects();
+      startTimer();
+
+      if (controlMode === 'webcam') {
+        document.getElementById('webcam-container').style.display = 'block';
+        initWebcamTracking();
+      } else {
+        document.getElementById('webcam-container').style.display = 'none';
+      }
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    // --- PEMBINAAN OBJEK CANVAS ---
+    function initGameObjects() {
+      dropZones = MAP_DATA.map(item => ({
+        ...item,
+        isMatched: false,
+        pixelX: 0, pixelY: 0, pixelW: 0, pixelH: 0
+      }));
+
+      const shuffled = [...MAP_DATA].sort(() => Math.random() - 0.5);
+      
+      puzzlePieces = shuffled.map((item, index) => ({
+        ...item,
+        isPlaced: false,
+        x: 0, y: 0, w: 0, h: 0,
+        poolIndex: index
+      }));
+
+      recalculatePositions();
+    }
+
+    function recalculatePositions() {
+      const cw = canvas.width;
+      const ch = canvas.height;
+
+      dropZones.forEach(zone => {
+        zone.pixelX = zone.x * cw;
+        zone.pixelY = zone.y * ch;
+        zone.pixelW = zone.w * cw;
+        zone.pixelH = zone.h * ch;
+      });
+
+      puzzlePieces.forEach((piece) => {
+        if (!piece.isPlaced && piece !== draggedPiece) {
+          const col = piece.poolIndex % 2;
+          const row = Math.floor(piece.poolIndex / 2);
+          piece.w = cw * 0.055;
+          piece.h = ch * 0.045;
+          piece.x = 20 + col * (piece.w + 10);
+          piece.y = 80 + row * (piece.h + 8);
+        }
+      });
+    }
+
+    // --- MASA, SKOR & NYAWA ---
+    function startTimer() {
+      timerSeconds = 0;
+      updateTimerUI();
+      timerInterval = setInterval(() => {
+        timerSeconds++;
+        updateTimerUI();
+      }, 1000);
+    }
+
+    function stopTimer() {
+      clearInterval(timerInterval);
+    }
+
+    function updateTimerUI() {
+      const m = Math.floor(timerSeconds / 60).toString().padStart(2, '0');
+      const s = (timerSeconds % 60).toString().padStart(2, '0');
+      document.getElementById('disp-timer').innerText = `${m}:${s}`;
+    }
+
+    function updateLivesUI() {
+      let hearts = '';
+      for (let i = 0; i < lives; i++) hearts += '❤️';
+      document.getElementById('disp-lives').innerText = hearts || '💀';
+    }
+
+    // --- RENDER LOOP CANVAS ---
+    function gameLoop() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      drawMapBackground();
+
+      dropZones.forEach(zone => {
+        ctx.save();
+        if (zone.isMatched) {
+          ctx.fillStyle = 'rgba(74, 222, 128, 0.4)';
+          ctx.strokeStyle = '#16a34a';
+          ctx.lineWidth = 2;
+        } else {
+          ctx.fillStyle = 'rgba(30, 41, 59, 0.5)';
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+          ctx.setLineDash([4, 4]);
+          ctx.lineWidth = 1.5;
+        }
+
+        ctx.beginPath();
+        ctx.roundRect(zone.pixelX, zone.pixelY, zone.pixelW, zone.pixelH, 8);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = zone.isMatched ? '#ffffff' : '#94a3b8';
+        ctx.font = zone.isMatched ? 'bold 12px sans-serif' : '10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(zone.name, zone.pixelX + zone.pixelW / 2, zone.pixelY + zone.pixelH / 2);
+        ctx.restore();
+      });
+
+      puzzlePieces.forEach(piece => {
+        if (!piece.isPlaced) {
+          ctx.save();
+          ctx.fillStyle = piece.color;
+          ctx.shadowColor = 'rgba(0,0,0,0.3)';
+          ctx.shadowBlur = 6;
+          
+          ctx.beginPath();
+          ctx.roundRect(piece.x, piece.y, piece.w, piece.h, 6);
+          ctx.fill();
+
+          ctx.fillStyle = '#ffffff';
+          ctx.font = 'bold 11px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(piece.name, piece.x + piece.w / 2, piece.y + piece.h / 2);
+          ctx.restore();
+        }
+      });
+
+      if (controlMode === 'webcam') {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(cursor.x, cursor.y, cursor.isPinching ? 12 : 8, 0, Math.PI * 2);
+        ctx.fillStyle = cursor.isPinching ? '#22c55e' : '#ef4444';
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      if (document.getElementById('screen-game').classList.contains('active')) {
+        requestAnimationFrame(gameLoop);
+      }
+    }
+
+    function drawMapBackground() {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 6]);
+
+      ctx.strokeRect(canvas.width * 0.10, canvas.height * 0.15, canvas.width * 0.30, canvas.height * 0.70);
+      ctx.strokeRect(canvas.width * 0.52, canvas.height * 0.20, canvas.width * 0.42, canvas.height * 0.65);
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+      ctx.font = 'bold 16px sans-serif';
+      ctx.fillText('SEMENANJUNG MALAYSIA', canvas.width * 0.25, canvas.height * 0.18);
+      ctx.fillText('SABAH & SARAWAK', canvas.width * 0.73, canvas.height * 0.23);
+      ctx.restore();
+    }
+
+    // --- WEBCAM & MEDIAPIPE GESTURE CONTROL ---
+    function initWebcamTracking() {
+      const videoEl = document.getElementById('webcam-video');
+      const canvasEl = document.getElementById('webcam-canvas');
+      const ctxEl = canvasEl.getContext('2d');
+      const statusEl = document.getElementById('webcam-status');
+
+      const hands = new Hands({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+      });
+
+      hands.setOptions({
+        maxNumHands: 1,
+        modelComplexity: 1,
+        minDetectionConfidence: 0.6,
+        minTrackingConfidence: 0.6
+      });
+
+      hands.onResults((results) => {
+        ctxEl.save();
+        ctxEl.clearRect(0, 0, canvasEl.width, canvasEl.height);
+        ctxEl.drawImage(results.image, 0, 0, canvasEl.width, canvasEl.height);
+
+        if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+          statusEl.innerText = "Tangan Dikesan ✓";
+          statusEl.style.color = "#4ade80";
+
+          const landmarks = results.multiHandLandmarks[0];
+          drawConnectors(ctxEl, landmarks, HAND_CONNECTIONS, {color: '#38bdf8', lineWidth: 2});
+          drawLandmarks(ctxEl, landmarks, {color: '#f43f5e', lineWidth: 1});
+
+          const indexTip = landmarks[8];
+          const thumbTip = landmarks[4];
+
+          const rawX = (1 - indexTip.x) * canvas.width;
+          const rawY = indexTip.y * canvas.height;
+
+          cursor.x += (rawX - cursor.x) * 0.35;
+          cursor.y += (rawY - cursor.y) * 0.35;
+
+          const dist = Math.hypot(indexTip.x - thumbTip.x, indexTip.y - thumbTip.y);
+          const pinchThreshold = 0.055;
+
+          if (dist < pinchThreshold) {
+            if (!cursor.isPinching) {
+              cursor.isPinching = true;
+              onPointerDown(cursor.x, cursor.y);
+            } else {
+              onPointerMove(cursor.x, cursor.y);
+            }
+          } else {
+            if (cursor.isPinching) {
+              cursor.isPinching = false;
+              onPointerUp(cursor.x, cursor.y);
+            }
+          }
+        } else {
+          statusEl.innerText = "Sila tunjukkan tangan";
+          statusEl.style.color = "#f59e0b";
+        }
+        ctxEl.restore();
+      });
+
+      cameraObj = new Camera(videoEl, {
+        onFrame: async () => {
+          await hands.send({image: videoEl});
+        },
+        width: 320,
+        height: 240
+      });
+
+      cameraObj.start().catch(() => {
+        alert("Gagal mengesan Kamera. Mod bertukar ke Tetikus/Sentuhan.");
+        controlMode = 'mouse';
+        document.getElementById('webcam-container').style.display = 'none';
+      });
+    }
+
+    // --- TETIKUS & SENTUHAN FALLBACK ---
+    function setupMouseEvents() {
+      canvas.addEventListener('mousedown', e => {
+        if (controlMode === 'mouse') onPointerDown(e.clientX, e.clientY);
+      });
+
+      canvas.addEventListener('mousemove', e => {
+        if (controlMode === 'mouse') onPointerMove(e.clientX, e.clientY);
+      });
+
+      canvas.addEventListener('mouseup', e => {
+        if (controlMode === 'mouse') onPointerUp(e.clientX, e.clientY);
+      });
+
+      canvas.addEventListener('touchstart', e => {
+        if (controlMode === 'mouse' && e.touches.length > 0) {
+          onPointerDown(e.touches[0].clientX, e.touches[0].clientY);
+        }
+      });
+
+      canvas.addEventListener('touchmove', e => {
+        if (controlMode === 'mouse' && e.touches.length > 0) {
+          onPointerMove(e.touches[0].clientX, e.touches[0].clientY);
+        }
+      });
+
+      canvas.addEventListener('touchend', e => {
+        if (controlMode === 'mouse') onPointerUp(0, 0);
+      });
+    }
+
+    // --- INTERAKSI DRAG & DROP LOGIC ---
+    function onPointerDown(px, py) {
+      for (let i = puzzlePieces.length - 1; i >= 0; i--) {
+        const piece = puzzlePieces[i];
+        if (!piece.isPlaced && px >= piece.x && px <= piece.x + piece.w && py >= piece.y && py <= piece.y + piece.h) {
+          draggedPiece = piece;
+          break;
+        }
+      }
+    }
+
+    function onPointerMove(px, py) {
+      if (draggedPiece) {
+        draggedPiece.x = px - draggedPiece.w / 2;
+        draggedPiece.y = py - draggedPiece.h / 2;
+      }
+    }
+
+    function onPointerUp(px, py) {
+      if (!draggedPiece) return;
+
+      const pieceCenterX = draggedPiece.x + draggedPiece.w / 2;
+      const pieceCenterY = draggedPiece.y + draggedPiece.h / 2;
+
+      let matchedZone = null;
+      dropZones.forEach(zone => {
+        if (!zone.isMatched &&
+            pieceCenterX >= zone.pixelX && pieceCenterX <= zone.pixelX + zone.pixelW &&
+            pieceCenterY >= zone.pixelY && pieceCenterY <= zone.pixelY + zone.pixelH) {
+          matchedZone = zone;
+        }
+      });
+
+      if (matchedZone) {
+        if (matchedZone.id === draggedPiece.id) {
+          matchedZone.isMatched = true;
+          draggedPiece.isPlaced = true;
+          score += 10;
+          correctCount++;
+
+          document.getElementById('disp-score').innerText = score;
+
+          if (correctCount === MAP_DATA.length) {
+            endGame(true);
+          }
+        } else {
+          wrongCount++;
+          lives--;
+          updateLivesUI();
+          recalculatePositions();
+
+          if (lives <= 0) {
+            endGame(false);
+          }
+        }
+      } else {
+        recalculatePositions();
+      }
+
+      draggedPiece = null;
+    }
+
+    // --- PENAMATAN PERMAINAN & INTEGRASI BACKEND ---
+    function endGame(isWin) {
+      stopTimer();
+      switchScreen('screen-results');
+
+      const total = MAP_DATA.length;
+      const percentage = Math.round((correctCount / total) * 100);
+
+      document.getElementById('res-heading').innerText = isWin ? "TAHNIAH! ANDA BERJAYA!" : "PERMAINAN TAMAT!";
+      document.getElementById('res-nama').innerText = player.nama;
+      document.getElementById('res-kelas').innerText = player.kelas;
+      document.getElementById('res-skor').innerText = score;
+      document.getElementById('res-betul').innerText = correctCount;
+      document.getElementById('res-salah').innerText = wrongCount;
+      document.getElementById('res-masa').innerText = document.getElementById('disp-timer').innerText;
+      document.getElementById('res-nyawa').innerText = lives;
+
+      let level = 'Sangat Baik 🏆';
+      if (percentage < 50) level = 'Perlu Usaha 📖';
+      else if (percentage < 80) level = 'Baik 👍';
+      document.getElementById('res-tahap').innerText = level;
+
+      saveDataToGoogleSheets({
+        nama: player.nama,
+        kelas: player.kelas,
+        skor: score,
+        tempohMasa: document.getElementById('disp-timer').innerText,
+        bakiNyawa: lives,
+        jumlahBetul: correctCount,
+        jumlahSalah: wrongCount,
+        peratus: percentage
+      });
+    }
+
+    function saveDataToGoogleSheets(payload) {
+      const statusBox = document.getElementById('save-status');
+      statusBox.innerText = "Menyimpan rekod ke Google Sheets...";
+
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler(() => {
+            statusBox.innerText = "✅ Rekod berjaya disimpan secara automatik!";
+            statusBox.style.color = "#4ade80";
+          })
+          .withFailureHandler((err) => {
+            statusBox.innerText = "❌ Gagal menyimpan rekod: " + err;
+            statusBox.style.color = "#f43f5e";
+          })
+          .simpanRekod(payload);
+      } else {
+        statusBox.innerText = "ℹ️ Mod Pratonton (Sila Jalankan Dalam Google Apps Script Web App).";
+      }
+    }
+
+    function resetGame() {
+      lives = 3;
+      score = 0;
+      correctCount = 0;
+      wrongCount = 0;
+      updateLivesUI();
+      document.getElementById('disp-score').innerText = '0';
+      switchScreen('screen-setup');
+    }
+  </script>
+</body>
+</html>
